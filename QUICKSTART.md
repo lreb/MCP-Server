@@ -4,10 +4,37 @@ This guide will get you up and running with your first MCP server in 10 minutes.
 
 ## What You'll Learn
 
+- ✅ Install all required software
 - ✅ Install and run the MCP server
 - ✅ Connect it to Claude Desktop
 - ✅ Test the available tools
 - ✅ Create your first custom tool
+
+---
+
+## Before You Begin – Install the Prerequisites
+
+You need two things installed before starting:
+
+### 1. Node.js (version 18 or higher)
+
+1. Go to **https://nodejs.org** and download the **LTS** version
+2. Run the installer (keep all defaults)
+3. Verify in a terminal:
+
+```bash
+node --version   # Should print v18.x.x or higher
+npm --version    # Should print 8.x.x or higher
+```
+
+### 2. Claude Desktop
+
+1. Go to **https://claude.ai/download** and download Claude Desktop for your OS
+2. Install and sign in with your Anthropic / Claude account
+3. Keep it closed for now — you'll configure it in Step 4
+
+> **Why Claude Desktop and not the browser?**  
+> The web version of Claude does not support MCP. Claude Desktop is required because it can launch local server processes and communicate with them over stdio.
 
 ---
 
@@ -78,9 +105,26 @@ Press `Ctrl+C` to stop. This confirms the server works!
 ~/.config/Claude/claude_desktop_config.json
 ```
 
-### Edit the Configuration
+### Create or Edit the Configuration File
 
-Open the file in a text editor and add:
+> **The file may not exist yet.** If Claude Desktop was freshly installed, the config file might be missing. Create it (and the containing folder) if needed.
+
+**Windows — create it if missing:**
+```bash
+# Open the config folder (creates it if missing)
+md "%APPDATA%\Claude" 2>nul
+notepad "%APPDATA%\Claude\claude_desktop_config.json"
+```
+
+**macOS — create it if missing:**
+```bash
+mkdir -p "$HOME/Library/Application Support/Claude"
+open -e "$HOME/Library/Application Support/Claude/claude_desktop_config.json"
+```
+
+### Add the Server Entry
+
+Paste the following into the file (replace the path with your actual project location):
 
 ```json
 {
