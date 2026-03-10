@@ -42,10 +42,12 @@ import {
 import { z } from 'zod';
 import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
-// pdf-parse is a CommonJS module; createRequire lets us import it in an ES module context
+// pdf-parse is a CommonJS module; createRequire lets us import it in an ES module context.
+// pdf-parse v2 no longer exports a default function — it exports a PDFParse class.
+// Usage: new PDFParse({ data: buffer }).getText()  →  { text, total (page count) }
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const pdfParse = require('pdf-parse');
+const { PDFParse } = require('pdf-parse');
 
 // === SERVER INSTANCE ===
 // The Server class manages the MCP lifecycle (handshake, routing, error handling).
@@ -546,10 +548,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       };
       
       const dataBuffer = await fs.readFile(path);
-      const pdfData = await pdfParse(dataBuffer);
+      const pdfData = await new PDFParse({ data: dataBuffer }).getText();
       
       let text = pdfData.text;
-      const totalPages = pdfData.numpages;
+      const totalPages = pdfData.total;
       
       // If specific page range requested, extract those pages
       if (pageStart || pageEnd) {
@@ -589,23 +591,40 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
       
-      const documents = [];
+      const documents: Array<{ filename: string; path: string; content: string; pageCount: number; indexed: string }> = [];
+      const failed: Array<{ filename: string; error: string }> = [];
+
       for (const filename of pdfFiles) {
         const filepath = join(directory, filename);
         try {
           const dataBuffer = await fs.readFile(filepath);
-          const pdfData = await pdfParse(dataBuffer);
+          const pdfData = await new PDFParse({ data: dataBuffer }).getText();
           
           documents.push({
             filename,
             path: filepath,
             content: pdfData.text,
-            pageCount: pdfData.numpages,
+            pageCount: pdfData.total,
             indexed: new Date().toISOString()
           });
         } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
           console.error(`Failed to index ${filename}:`, error);
+          failed.push({ filename, error: message });
         }
+      }
+
+      // If every file failed, report the errors rather than saving an empty index
+      if (documents.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Failed to index any documents from "${directory}".\n\nErrors:\n${failed.map(f => `- ${f.filename}: ${f.error}`).join('\n')}`
+            }
+          ],
+          isError: true
+        };
       }
       
       const index: DocumentIndex = {
@@ -616,14 +635,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       };
       
       documentIndexes.set(indexName, index);
-      
+
+      let indexResultText = `Successfully indexed ${documents.length} of ${pdfFiles.length} document(s) as "${indexName}":\n\n`;
+      indexResultText += documents.map(d => `\u2713 ${d.filename} (${d.pageCount} pages)`).join('\n');
+      if (failed.length > 0) {
+        indexResultText += `\n\nFailed to index ${failed.length} file(s):\n`;
+        indexResultText += failed.map(f => `\u2717 ${f.filename}: ${f.error}`).join('\n');
+      }
+
       return {
-        content: [
-          {
-            type: 'text',
-            text: `Successfully indexed ${documents.length} documents as "${indexName}":\n\n${documents.map(d => `- ${d.filename} (${d.pageCount} pages)`).join('\n')}`
-          }
-        ]
+        content: [{ type: 'text', text: indexResultText }]
       };
     }
 
@@ -656,16 +677,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const snippets = [];
         
         for (const term of searchTerms) {
-          const regex = new RegExp(term, 'gi');
+          // Escape special regex characters so raw user input (e.g. "P0420 (catalyst)") never throws
+          const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(escapedTerm, 'gi');
           const matches = content.match(regex);
           if (matches) {
             score += matches.length;
             
-            // Find context around match
-            const index = content.indexOf(term);
-            if (index !== -1) {
-              const start = Math.max(0, index - 100);
-              const end = Math.min(content.length, index + 100);
+            // Find context around match (use a distinct variable name to avoid shadowing outer `index`)
+            const matchPos = content.indexOf(term);
+            if (matchPos !== -1) {
+              const start = Math.max(0, matchPos - 100);
+              const end = Math.min(content.length, matchPos + 100);
               const snippet = doc.content.substring(start, end).replace(/\n/g, ' ').trim();
               snippets.push(`...${snippet}...`);
             }
