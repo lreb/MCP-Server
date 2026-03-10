@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "local-dev-server": {
+      "command": "node",
+      "args": [
+        "C:\\Projects\\mcp-server\\dist\\index.js"
+      ]
+    }
+  }
+}
