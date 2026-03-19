@@ -8,7 +8,7 @@ The server exposes MCP tools over stdio for Claude Desktop.
 
 Tool groups:
 - File tools: `read-file`, `write-file`, `list-directory`
-- Task tools: `create-task`, `list-tasks`, `update-task-status`
+- Task tools: `create-task`, `list-tasks`, `update-task-status`, `delete-task`, `search-tasks`, `tasks-completed-this-week`
 - Document tools: `generate-markdown-doc`, `generate-readme`
 - PDF tools: `read-pdf`, `index-documents`, `search-documents`, `list-indexes`
 
@@ -18,6 +18,39 @@ Tool groups:
 - Build output: `dist/index.js`
 - Transport: `StdioServerTransport`
 - Server starts in `main()` and logs to stderr
+
+## SQLite Persistence
+
+Tasks are stored in a SQLite database using `better-sqlite3`.
+
+**Database location:** `~/mcp-tasks.db` (user's home directory)
+
+**Why home directory?**
+- Survives project folder moves or clones
+- Accessible across multiple projects using the same server
+- No risk of being accidentally deleted with `dist/` or `node_modules/`
+
+**Schema:**
+
+```sql
+CREATE TABLE tasks (
+  id          TEXT PRIMARY KEY,
+  title       TEXT NOT NULL,
+  description TEXT NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'todo'
+                CHECK(status IN ('todo','in-progress','done')),
+  priority    TEXT NOT NULL DEFAULT 'medium'
+                CHECK(priority IN ('low','medium','high')),
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+```
+
+**Prepared statements** are compiled once at startup for performance and SQL injection safety.
+
+**ID continuity:** On startup, the server reads the highest existing task ID from the database and seeds the counter from there, so IDs never collide after a restart.
+
+**PDF indexes** remain in-memory (Map) because they are large and rebuilding them from source PDFs is fast. They do not persist across restarts.
 
 ## Scripts and behavior
 
@@ -47,14 +80,6 @@ Reason: Claude config usually points to `dist/index.js`, not `src/index.ts`.
   }
 }
 ```
-
-## Verify everything works
-
-1. Run `npm run build`.
-2. Check `dist/index.js` exists.
-3. Restart Claude Desktop.
-4. Ask: `What MCP servers are connected?`
-5. Run one simple tool call (for example, `list-directory`).
 
 ## Add a new tool (short checklist)
 

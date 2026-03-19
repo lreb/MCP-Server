@@ -1,12 +1,13 @@
 # Local Development MCP Server
 
-A simple MCP server for local development with Claude Desktop.
+A local MCP server for Claude Desktop with persistent task management, file operations, document generation, and PDF indexing.
 
-It includes tools for:
-- File operations
-- Task management
-- Document generation
-- PDF reading and indexing
+## What's New in v2.0.0
+
+- **SQLite persistence for tasks** — tasks now survive server restarts and recompiles
+- **Zero native dependencies** — uses `sql.js` (SQLite as WebAssembly), installs on Windows/macOS/Linux without build tools
+- **Two new task tools** — `delete-task` and `search-tasks`
+- **Weekly review tool** — `tasks-completed-this-week` for standups
 
 ## Prerequisites
 
@@ -24,6 +25,8 @@ cd mcp-server
 npm install
 ```
 
+No build tools required — `sql.js` is pure WebAssembly.
+
 ### 2. Build and run
 
 ```bash
@@ -34,18 +37,18 @@ npm start
 Expected output:
 
 ```text
-MCP Server running on stdio
+Task database created at: C:\Users\<you>\mcp-tasks.db
+MCP Server v2.0.0 running on stdio
+Task database: C:\Users\<you>\mcp-tasks.db
 ```
 
 ### 3. Connect Claude Desktop
 
 Edit your Claude config:
 
-- Windows: `%APPDATA%\\Claude\\claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Linux: `~/.config/Claude/claude_desktop_config.json`
-
-Use this entry (update path if needed):
 
 ```json
 {
@@ -68,29 +71,68 @@ Restart Claude Desktop after saving.
 npm run watch
 ```
 
-This uses `tsx watch src/index.ts` and restarts automatically when `src/index.ts` changes.
-
 ### Claude Desktop workflow
-
-Claude runs `dist/index.js`, so after code changes:
 
 ```bash
 npm run build
 # restart Claude Desktop
 ```
 
-## How to verify the server is running
+## Task Database
 
-1. In terminal: look for `MCP Server running on stdio`.
-2. In Claude Desktop: ask `What MCP servers are connected?`.
-3. You should see `local-dev` and the tool list.
+Tasks are stored in a SQLite database at:
 
-## Documentation
+- Windows: `C:\Users\<you>\mcp-tasks.db`
+- macOS/Linux: `~/mcp-tasks.db`
 
-- [QUICKSTART.md](QUICKSTART.md): setup and first run
-- [TUTORIAL.md](TUTORIAL.md): add your own tool
-- [TROUBLESHOOTING.md](TROUBLESHOOTING.md): common fixes
-- [API_REFERENCE.md](API_REFERENCE.md): technical reference
+The database is created automatically on first run. The server loads it into memory on startup and saves it to disk after every write. You can open it with any SQLite viewer (e.g. [DB Browser for SQLite](https://sqlitebrowser.org/)).
+
+## How to use the task tools
+
+Try these prompts in Claude Desktop after connecting:
+
+| What you want | What to say to Claude |
+|---|---|
+| Add a task | "Create a task: review the API docs, high priority" |
+| See all tasks | "List all my tasks" |
+| Filter by status | "Show me all in-progress tasks" |
+| Move a task forward | "Mark task-1 as done" |
+| Find a task | "Search tasks for 'authentication'" |
+| Weekly review | "What tasks did I complete this week?" |
+| Clean up | "Delete task-3" |
+
+## Available Tools
+
+### File Operations
+| Tool | Description |
+|---|---|
+| `read-file` | Read any file from disk |
+| `write-file` | Write/create a file |
+| `list-directory` | List folder contents |
+
+### Task Management (SQLite — persistent)
+| Tool | Description |
+|---|---|
+| `create-task` | Create a task (saved to DB immediately) |
+| `list-tasks` | List tasks, filterable by status |
+| `update-task-status` | Move task to todo / in-progress / done |
+| `delete-task` | Permanently delete a task |
+| `search-tasks` | Search tasks by keyword |
+| `tasks-completed-this-week` | Show tasks done in the last 7 days |
+
+### Document Generation
+| Tool | Description |
+|---|---|
+| `generate-markdown-doc` | Generate a structured `.md` file |
+| `generate-readme` | Scaffold a `README.md` template |
+
+### PDF / Document Indexing
+| Tool | Description |
+|---|---|
+| `read-pdf` | Extract text from a PDF |
+| `index-documents` | Bulk-index PDFs in a folder |
+| `search-documents` | Keyword search across indexed PDFs |
+| `list-indexes` | Show all active indexes |
 
 ## Available Scripts
 
@@ -100,3 +142,11 @@ npm run dev     # Run from source once (tsx)
 npm start       # Run compiled server (dist/index.js)
 npm run watch   # Run from source with auto-restart
 ```
+
+## Documentation
+
+- [QUICKSTART.md](QUICKSTART.md) — setup and first run
+- [TUTORIAL.md](TUTORIAL.md) — add your own tool
+- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) — common fixes
+- [API_REFERENCE.md](API_REFERENCE.md) — technical reference
+- [DOCUMENTATION.md](DOCUMENTATION.md) — architecture overview
